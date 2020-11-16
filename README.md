@@ -10,7 +10,7 @@ Ideally the sysctl amending initContainer should be removed from the deployment 
 
 The problem with a `Job` is that it'll only be deployed once and thus if the application container needs to be relocated to another worker node, the sysctl settings will not be reapplied. To overcome this, a `DaemonSet` can be used, whereby all nodes in the cluster will have sysctl settings update, or a subset of worker nodes can be amended via labelling (tainting). 
 
-**Note:** (as stated [here](https://unofficial-kubernetes.readthedocs.io/en/latest/concepts/cluster-administration/sysctl-cluster/) it is good practice to consider nodes with special sysctl settings as tainted within a cluster, and only schedule pods onto them which need those sysctl settings. It is suggested to use the Kubernetes taints and toleration feature to implement this.
+**Note:** (as stated [here](https://unofficial-kubernetes.readthedocs.io/en/latest/concepts/cluster-administration/sysctl-cluster/)) it is good practice to consider nodes with special sysctl settings as tainted within a cluster, and only schedule pods onto them which need those sysctl settings. It is suggested to use the Kubernetes taints and toleration feature to implement this.
 
 ## Elasticsearch sysctl requirements
 As per [here](https://hub.docker.com/_/sonarqube):
