@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-sysctl-check
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-sysctl
+      release: test-sysctl
+  template:
+    metadata:
+      labels:
+        app: test-sysctl
+        release: test-sysctl
+    spec:
+      serviceAccountName: test-sysctl
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      initContainers:
+        - name: init-sysctl
+          image: busybox:1.32
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 0
+            privileged: true
+          resources:
+            {}
+          command: ["sh", "-c"]
+          args: ["id && ls -la /tmp/scripts/ && sh -e /tmp/scripts/init_sysctl.sh && sysctl -w vm.max_map_count=524288 && ulimit -n && echo 'vm.max_map_count='$(sysctl -n vm.max_map_count)"]
+          volumeMounts:
+            - name: init-sysctl
+              mountPath: /tmp/scripts/
+      containers:
+        - name: main-container
+          image: busybox:1.32
+          imagePullPolicy: IfNotPresent
+          resources:
+            {}
+          command: ["sh", "-c"]
+          args: ["id && sleep 1h"]        
+      volumes:
+      - name: init-sysctl
+        configMap:
+          name: test-sysctl
+          items:
+            - key: init_sysctl.sh
+              path: init_sysctl.sh
