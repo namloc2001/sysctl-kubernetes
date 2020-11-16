@@ -3,6 +3,15 @@ When deploying any pods/containers on to Kubernetes or OpenShift, they should be
 
 Due to needing to deploy containers that likely need some kernel parameters being amended via `sysctl` (cough, cough, SonarQube because of Elasticsearch...) I wanted to look to make the deployment as secure as possible with regards to security contexts.
 
+## Summary
+If using an initContainer to amend sysctls as part of a deployment, the SCC (which can easily be converted into a PSP for Kubernetes) included in this repo reduces the permissions/privilege that can be set for initContainer/containers in the deployment as much as possible. The deployment configuration is also configured to reduce the securityContext permissions/privileges assigned to the initContainer/Containers to the level they require. With the configuration files in this repo, to control the deployment security, the `securityContext` settings should be monitored to make sure developers don't amend them and elevate beyond the intended privilege, and there should ideally be separation of duty regarding the setting of value in the deployment and the controlling SCC.
+
+Ideally the sysctl amending initContainer should be removed from the deployment and instead implemented via another mechanism such as a Job or Daemonset. This implementation can then be controlled  via a separate SCC/PSP and the main application container can be controlled by a restricted SCC/PSP to avoid over-providing privilege.
+
+The problem with a `Job` is that it'll only be deployed once and thus if the application container needs to be relocated to another worker node, the sysctl settings will not be reapplied. To overcome this, a `DaemonSet` can be used, whereby all nodes in the cluster will have sysctl settings update, or a subset of worker nodes can be amended via labelling (tainting). 
+
+**Note:** (as stated [here](https://unofficial-kubernetes.readthedocs.io/en/latest/concepts/cluster-administration/sysctl-cluster/) it is good practice to consider nodes with special sysctl settings as tainted within a cluster, and only schedule pods onto them which need those sysctl settings. It is suggested to use the Kubernetes taints and toleration feature to implement this.
+
 ## Elasticsearch sysctl requirements
 As per [here](https://hub.docker.com/_/sonarqube):
 
@@ -219,4 +228,4 @@ Finally, as root (0) user is required by the initContainer; fsGroup, runAsUser a
 Currently looking into why the mounted secret is `root:root` rather than having the same group applied as fsGroup does on the volume itself. This seems to be related: https://github.com/kubernetes/kubernetes/issues/81089 but I cannot find the explanation regarding the K8s functionality/reasoning that is causing this to happen. Although you can set the file permissions on the secret, as per [here](https://kubernetes.io/docs/concepts/configuration/secret/#secret-files-permissions), it looks as though there isn't yet the functionality to set user or group and this is what the referenced [github issue](https://github.com/kubernetes/kubernetes/issues/81089) is potentially seeking to do.
 
 ## TODO
-Ideally, there would be a mechanism to separate the initContainer performing the `sysctl` changes from the deployment and apply a more restricted SCC to the SonarQube container, rather than giving it the opportunity to run as root if somebody decides to configure the deployment in such a manner. Kubernetes/OpenShift documentation suggests this could be achieved via a DaemonSet on every node/every node labelled as desired. Need to look into this futher.
+Look further into DaemonSet configuration for sysctl setting and consider implication.
