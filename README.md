@@ -111,7 +111,7 @@ This is an issue when e.g. LXC (Linux Containers) are used and complete user spa
 #### sysctl.c summary
 It appears that the capability `CAP_SYS_ADMIN` is only required for changes related to tainting and viewing kernel syslog.
 
-## Docker Prvileged mode
+## Docker Privileged mode
 Docker privileged mode is detailed [here](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities):
 
 > When the operator executes docker run `--privileged`, Docker will enable access to all devices on the host as well as set some configuration in AppArmor or SELinux to allow the container nearly all the same access to the host as processes running outside containers on the host.
