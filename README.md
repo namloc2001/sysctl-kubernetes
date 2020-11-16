@@ -1,7 +1,16 @@
-# Interacting with sysctl in OpenShift
+# Interacting with sysctl in Kubernetes/OpenShift
 When deploying any pods/containers on to Kubernetes or OpenShift, they should be deployed with minimal privilege, minimal access to capabilities and avoiding root (0) user where possible.
 
-Due to needing to deploy containers that likely need some kernel parameters being amended (cough, cough, SonarQube because of ElasticSearch...) I wanted to look to make the deployment as secure as possible with regards to security contexts.
+Due to needing to deploy containers that likely need some kernel parameters being amended via `sysctl` (cough, cough, SonarQube because of Elasticsearch...) I wanted to look to make the deployment as secure as possible with regards to security contexts.
+
+## Elasticsearch sysctl requirements
+As per [here](https://hub.docker.com/_/sonarqube):
+
+> Because SonarQube uses an embedded Elasticsearch, make sure that your Docker host configuration complies with the Elasticsearch production mode requirements and File Descriptors configuration. For example, on Linux, you can set the recommended values for the current session by running the following commands as root on the host:
+> - sysctl -w vm.max_map_count=262144
+> - sysctl -w fs.file-max=65536
+> - ulimit -n 65536
+> - ulimit -u 4096
 
 ## Sysctl
 Sysctl is is described [here](https://linux.die.net/man/8/sysctl):
@@ -45,17 +54,17 @@ Some detail regarding the `capable` function is detailed [here](http://www.cis.s
 
 The function `capable(<CAPABILITY_NAME>)` checks whether the current process has `<CAPABILITY_NAME>` as an effective capability. 
 
-These two links define `capable` as a function (however note kernel version is `2.6.15.6`), so we need to check the version applicable to us:
+These two links define `capable` as a function:
  - [security.c](https://elixir.bootlin.com/linux/v2.6.15.6/source/security/security.c#L186)
  - [sched.h](https://elixir.bootlin.com/linux/v2.6.15.6/source/include/linux/sched.h#L1109)
 
-Perform `oc describe node <node_name> | grep Kernel` to show kernel version on node being used:
+However note kernel version is `2.6.15.6`, so we need to check the version applicable to us. Perform `oc describe node <node_name> | grep Kernel` to show kernel version on node being used:
 ```
 oc describe node <node_name> | grep Kernel
  Kernel Version:  3.10.0-1160.2.2.el7.x86_64
 ```
 
-Therefore we need to find where this function is declared in kernel v3.10. Some detail given here: https://elixir.bootlin.com/linux/v3.10/source/kernel/capability.c#L419
+Therefore we need to find where this function is declared in kernel v3.10. Some detail given [here](https://elixir.bootlin.com/linux/v3.10/source/kernel/capability.c#L419):
 ```
 /**
  * capable - Determine if the current task has a superior capability in effect
@@ -67,6 +76,7 @@ Therefore we need to find where this function is declared in kernel v3.10. Some 
  * This sets PF_SUPERPRIV on the task if the capability is available on the
  * assumption that it's about to be used.
  */
+```
 
 #### proc_taint
 `kernel.tainted` will is a non-zero value if the kernel has been tainted. Values can be viewed [here](https://sysctl-explorer.net/kernel/tainted/).
@@ -87,10 +97,10 @@ Rather than futilely attempt to sanitize hundreds (or thousands) of printk state
 As per [here](https://lore.kernel.org/patchwork/patch/241060/)
 
 > When dmesg_restrict is set to 1 CAP_SYS_SYSLOG is needed to read the kernel ring buffer. But a root user without CAP_SYS_ADMIN is able to reset dmesg_restrict to 0. 
-This is an issue when e.g. LXC (Linux Containers) are used and complete user space is running without CAP_SYS_ADMIN. A unprivileged and jailed root user can bypass the dmesg_restrict protection. With this patch writing to dmesg_restrict is only allowed when root has CAP_SYS_ADMIN.
+This is an issue when e.g. LXC (Linux Containers) are used and complete user space is running without CAP_SYS_ADMIN. An unprivileged and jailed root user can bypass the dmesg_restrict protection. With this patch writing to dmesg_restrict is only allowed when root has CAP_SYS_ADMIN.
 
 #### sysctl.c summary
-It appears that the capability `CAP_SYS_ADMIN` is only required for changes related to tainting and vieing kernel syslog.
+It appears that the capability `CAP_SYS_ADMIN` is only required for changes related to tainting and viewing kernel syslog.
 
 ## Docker Prvileged mode
 Docker privileged mode is detailed [here](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities):
@@ -128,9 +138,9 @@ The following tests have been performed to check settings:
 
 (Note: `sysctl -n` is used to read the setting, `-n` disables printing of the key name when printing values. `sysctl -w` is used to write a sysctl setting change).
 
-*Summary:* Testing has given the following outcomes:
- - SYS_ADMIN capability alone is not sufficient to make sysctl changes as `/proc/sys` is only made available with read permission (note: SYS_ADMIN is not actually required for the specific sysctls being changed above.
- - When testing with `prvilieged:true`, it has been shown that root (0) user must be used other permission is denied.
+**Summary:** Testing has given the following outcomes:
+ - SYS_ADMIN capability alone is not sufficient to make sysctl changes as `/proc/sys` is only made available with read permission (note: SYS_ADMIN is *not* actually required for the specific sysctls being set above).
+ - When testing with `prvilieged:true`, it has been shown that root (0) user must be used otherwise permission is denied.
  - The privileged setting makes `/proc/sys` available with write permission.
  - It also appears that no capabilities are required for sysctls to be set, just root user and privileged container.
 
@@ -174,6 +184,36 @@ vm.max_map_count = 524288
 1048576
 vm.max_map_count=524288
 ```
+
+### SCC configuration
+The SCC that can be used with SonarQube can be configured as per the `sysctl-scc.yaml` in this repo.
+
+Set all `allowHost` settings to false:
+```
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+```
+
+Setting `allowPrivilegedContainer` (along with `allowPrivilegeEscalation` and `defaultAllowPrivilegeEscalation` to true):
+```
+allowPrivilegedContainer: true
+allowPrivilegeEscalation: true
+defaultAllowPrivilegeEscalation: true
+```
+Otherwise, the following error appears for replicaSet: 'cannot set `allowPrivilegeEscalation` to false and `privileged` to true'.
+
+All capabilities are required to be dropped, via:
+```
+allowedCapabilities: []
+defaultAddCapabilities: []
+requiredDropCapabilities:
+- ALL
+```
+
+Finally, as root (0) user is required by the initContainer; fsGroup, runAsUser and supplementalGroups can all be set to `runAsAny`. 
 
 ## Mounted secret assigned user & group
 Currently looking into why the mounted secret is `root:root` rather than having the same group applied as fsGroup does on the volume itself. This seems to be related: https://github.com/kubernetes/kubernetes/issues/81089 but I cannot find the explanation regarding the K8s functionality/reasoning that is causing this to happen. Although you can set the file permissions on the secret, as per [here](https://kubernetes.io/docs/concepts/configuration/secret/#secret-files-permissions), it looks as though there isn't yet the functionality to set user or group and this is what the referenced [github issue](https://github.com/kubernetes/kubernetes/issues/81089) is potentially seeking to do.
