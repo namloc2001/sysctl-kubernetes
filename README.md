@@ -8,7 +8,7 @@ If using an initContainer to amend sysctls as part of a deployment, the SCC (whi
 
 Ideally the sysctl amending initContainer should be removed from the deployment and instead implemented via another mechanism such as a Job or Daemonset. This implementation can then be controlled  via a separate SCC/PSP and the main application container can be controlled by a restricted SCC/PSP to avoid over-providing privilege.
 
-The problem with a `Job` is that it'll only be deployed once and thus if the application container needs to be relocated to another worker node, the sysctl settings will not be reapplied. To overcome this, a `DaemonSet` can be used, whereby all nodes in the cluster will have sysctl settings update, or a subset of worker nodes can be amended via labelling (tainting). 
+The problem with a `Job` is that it'll only be deployed once and thus if the application container needs to be relocated to another worker node, the sysctl settings will not be reapplied. To overcome this, a `DaemonSet` can be used, whereby all nodes in the cluster will have sysctl settings update, or a subset of worker nodes can be amended via labelling ([Kubernetes tainting](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/)). 
 
 **Note:** (as stated [here](https://unofficial-kubernetes.readthedocs.io/en/latest/concepts/cluster-administration/sysctl-cluster/)) it is good practice to consider nodes with special sysctl settings as tainted within a cluster, and only schedule pods onto them which need those sysctl settings. It is suggested to use the Kubernetes taints and toleration feature to implement this.
 
