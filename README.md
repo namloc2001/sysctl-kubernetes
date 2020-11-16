@@ -217,3 +217,6 @@ Finally, as root (0) user is required by the initContainer; fsGroup, runAsUser a
 
 ## Mounted secret assigned user & group
 Currently looking into why the mounted secret is `root:root` rather than having the same group applied as fsGroup does on the volume itself. This seems to be related: https://github.com/kubernetes/kubernetes/issues/81089 but I cannot find the explanation regarding the K8s functionality/reasoning that is causing this to happen. Although you can set the file permissions on the secret, as per [here](https://kubernetes.io/docs/concepts/configuration/secret/#secret-files-permissions), it looks as though there isn't yet the functionality to set user or group and this is what the referenced [github issue](https://github.com/kubernetes/kubernetes/issues/81089) is potentially seeking to do.
+
+## TODO
+Ideally, there would be a mechanism to separate the initContainer performing the `sysctl` changes from the deployment and apply a more restricted SCC to the SonarQube container, rather than giving it the opportunity to run as root if somebody decides to configure the deployment in such a manner. Kubernetes/OpenShift documentation suggests this could be achieved via a DaemonSet on every node/every node labelled as desired. Need to look into this futher.
