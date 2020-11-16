@@ -3,7 +3,7 @@ When deploying any pods/containers on to Kubernetes or OpenShift, they should be
 
 Due to needing to deploy containers that likely need some kernel parameters being amended via `sysctl` (cough, cough, SonarQube because of Elasticsearch...) I wanted to look to make the deployment as secure as possible with regards to security contexts.
 
-*Note:* SCCs = control the actions that a pod can perform and what it has the ability to access. The equivalent in Kubernetes are pod security policies (PSPs).
+*Note:* SCCs control the actions that a pod can perform and what it has the ability to access. The equivalent in Kubernetes are pod security policies (PSPs).
 
 ## Summary
 If using an initContainer to amend sysctls as part of a deployment, the SCC (which can easily be converted into a PSP for Kubernetes) included in this repo reduces the permissions/privilege that can be set for initContainer/containers in the deployment as much as possible. The deployment configuration is also configured to reduce the securityContext permissions/privileges assigned to the initContainer/Containers to the level they require. With the configuration files in this repo, to control the deployment security, the `securityContext` settings should be monitored to make sure developers don't amend them and elevate beyond the intended privilege, and there should ideally be separation of duty regarding the setting of (security) values in the deployment and amending the settings in the controlling SCC.
